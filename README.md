@@ -43,9 +43,9 @@ flowchart LR
     WK -->|task| PG
     WK -->|send_notification| RQ
     RQ -->|notification| WK --> TG
-    BOT -. task.created .-> RQ
-    WK -. task.created .-> RQ
-    API[api<br/>FastAPI] -. subscribe .-> RQ
+    BOT -.->|task.created| RQ
+    WK -.->|task.created| RQ
+    API[api<br/>FastAPI] -.->|subscribe| RQ
     API --> PG
     API -->|REST + WebSocket| WEB[web<br/>nginx + React]
     WEB -->|PATCH status| API
