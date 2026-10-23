@@ -107,6 +107,21 @@ services:
       retries: 12
       start_period: 90s
 
+  # Dashboard: nginx serving the built SPA and proxying /api and /ws to the api service.
+  web:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   # Backend tests against real Postgres (separate database) and Redis (separate db index).
   # `make test` runs: docker compose --profile test run --rm test
   test:

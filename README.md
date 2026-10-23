@@ -2,7 +2,7 @@
 
 Omni-channel task management: create tasks from a Telegram bot by text or voice, see them appear instantly on a web Kanban dashboard, and move them between Pending, In Progress and Completed.
 
-> Status: milestone 4 (voice worker). The web dashboard is next.
+> Status: milestone 5 (dashboard). Hardening and full documentation are next.
 
 ## Stack
 
@@ -23,6 +23,7 @@ docker compose up --build
 
 Then:
 
+- Dashboard: http://localhost:3000
 - API health: http://localhost:8000/api/health
 - API docs: http://localhost:8000/docs
 
@@ -38,6 +39,13 @@ make logs     # follow logs
 make test     # backend tests
 make lint
 make down
+```
+
+Frontend, outside Docker (hot reload against the API running in Docker on :8000):
+
+```bash
+cd frontend && npm install && npm run dev     # http://localhost:5173
+npm test                                      # vitest
 ```
 
 ## Design decisions

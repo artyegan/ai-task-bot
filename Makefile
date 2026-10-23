@@ -20,3 +20,6 @@ test:          ## Backend tests against real Postgres + Redis (test db/index, ne
 
 lint:
 	docker compose --profile test run --build --rm --no-deps test ruff check app tests
+
+web-test:      ## Frontend unit tests + typecheck (needs node locally)
+	cd frontend && npm test && npm run typecheck
