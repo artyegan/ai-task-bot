@@ -14,9 +14,9 @@ log = get_logger("bot.voice")
 router = Router(name="voice")
 
 
-@router.message(F.voice)
+@router.message(F.voice | F.audio)
 async def handle_voice(message: Message, session: AsyncSession, user: User) -> None:
-    voice = message.voice
+    voice = message.voice or message.audio  # voice note, or an audio file sent as a document
     assert voice is not None
     max_bytes = get_settings().max_voice_bytes
     if voice.file_size and voice.file_size > max_bytes:
@@ -43,3 +43,9 @@ async def handle_voice(message: Message, session: AsyncSession, user: User) -> N
         await ack.edit_text(messages.SOMETHING_WENT_WRONG)
         return
     log.info("voice.queued", voice_job_id=job.id, user_id=user_id, seconds=voice.duration)
+
+
+@router.message()
+async def unsupported(message: Message) -> None:
+    """Stickers, photos, documents…: say what the bot can do instead of staying silent."""
+    await message.answer(messages.UNSUPPORTED_MESSAGE)

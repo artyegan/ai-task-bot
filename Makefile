@@ -6,6 +6,9 @@ up:            ## Build and start the whole stack
 down:          ## Stop and remove containers (keeps the database volume)
 	docker compose down
 
+reset:         ## Stop everything and delete the database volume (fresh start)
+	docker compose down -v
+
 build:
 	docker compose build
 

@@ -28,6 +28,8 @@ TASK_DONE = "✅ Task #{number} completed: {title}"
 TASK_NOT_FOUND = "❌ Task #{number} not found."
 USAGE_DONE = "Usage: /done <task number>"
 UNKNOWN_COMMAND = "Unknown command. Send /start to see what I can do."
+UNSUPPORTED_MESSAGE = "I can only turn text or voice messages into tasks."
+TITLE_TOO_LONG = "❌ That's too long for a task title (max {max_chars} characters)."
 SOMETHING_WENT_WRONG = "⚠️ Something went wrong on my side. Please try again."
 
 FAILURE_REASONS = {

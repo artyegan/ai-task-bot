@@ -31,6 +31,24 @@ async def test_text_creates_task_and_replies(session, user):
     msg.answer.assert_awaited_once_with("✅ Task #1 created: Buy milk")
 
 
+async def test_text_too_long_is_rejected(session, user):
+    msg = _message("x" * 501)
+    await text.create_text_task(msg, session, user)
+    _, total = await task_service.list_tasks(session)
+    assert total == 0
+    msg.answer.assert_awaited_once_with(
+        "❌ That's too long for a task title (max 500 characters)."
+    )
+
+
+async def test_unsupported_message_gets_a_hint():
+    from app.bot.handlers.voice import unsupported
+
+    msg = _message(None)
+    await unsupported(msg)
+    msg.answer.assert_awaited_once_with(messages.UNSUPPORTED_MESSAGE)
+
+
 async def test_list_empty_then_with_tasks(session, user):
     msg = _message("/list")
     await commands.list_open_tasks(msg, session, user)
