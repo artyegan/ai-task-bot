@@ -23,6 +23,19 @@ services:
       timeout: 3s
       retries: 10
 
+  # One-shot: applies Alembic migrations, then exits. No restart policy on purpose;
+  # dependents wait for service_completed_successfully.
+  migrate:
+    build:
+      context: ./backend
+      target: app
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: ./backend
@@ -34,7 +47,10 @@ services:
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
+    restart: unless-stopped
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -45,6 +61,42 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  bot:
+    build:
+      context: ./backend
+      target: app
+    command: python -m app.bot.main
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/app
+      REDIS_URL: redis://redis:6379/0
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Backend tests against real Postgres (separate database) and Redis (separate db index).
+  # `make test` runs: docker compose --profile test run --rm test
+  test:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: dev
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/app_test
+      REDIS_URL: redis://redis:6379/1
+      TRANSCRIBER: fake
+      LOG_LEVEL: WARNING
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

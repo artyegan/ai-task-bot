@@ -2,7 +2,7 @@
 
 Omni-channel task management: create tasks from a Telegram bot by text or voice, see them appear instantly on a web Kanban dashboard, and move them between Pending, In Progress and Completed.
 
-> Status: milestone 1 (scaffold). Bot, worker and dashboard are coming in the next milestones.
+> Status: milestone 3 (text bot). Voice worker and dashboard are coming in the next milestones.
 
 ## Stack
 

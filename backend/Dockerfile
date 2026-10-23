@@ -17,6 +17,8 @@ COPY pyproject.toml ./
 RUN mkdir -p app && touch app/__init__.py && pip install . && rm -rf app
 
 FROM base AS app
+COPY --chown=app:app alembic.ini ./
+COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app app ./app
 USER app
 

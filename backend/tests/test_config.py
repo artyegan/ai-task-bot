@@ -1,7 +1,9 @@
 from app.core.config import Settings
 
 
-def test_defaults_match_contracts():
+def test_defaults_match_contracts(monkeypatch):
+    for var in ("TRANSCRIBER", "WHISPER_MODEL", "DATABASE_URL"):
+        monkeypatch.delenv(var, raising=False)
     s = Settings(_env_file=None)
     assert s.transcriber == "local"
     assert s.whisper_model == "small"

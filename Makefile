@@ -15,8 +15,8 @@ logs:
 ps:
 	docker compose ps
 
-test:          ## Run backend tests in the dev image
-	docker build -q --target dev -t ai-task-bot-dev ./backend && docker run --rm ai-task-bot-dev pytest -q
+test:          ## Backend tests against real Postgres + Redis (test db/index, never touches app data)
+	docker compose --profile test run --build --rm test pytest -q
 
 lint:
-	docker build -q --target dev -t ai-task-bot-dev ./backend && docker run --rm ai-task-bot-dev ruff check app tests
+	docker compose --profile test run --build --rm --no-deps test ruff check app tests

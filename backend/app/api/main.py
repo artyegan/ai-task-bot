@@ -4,12 +4,15 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
+from app.api import ws
+from app.api.errors import install_error_handlers
+from app.api.routers import health, tasks, users
+from app.core import queue
 from app.core.config import get_settings
-from app.core.db import check_db, engine
+from app.core.db import engine
 from app.core.logging import configure_logging, get_logger
-from app.core.redis import check_redis, redis
+from app.core.redis import redis
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -18,8 +21,11 @@ log = get_logger("api")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await ws.broadcaster.start()
     log.info("api.start")
     yield
+    await ws.broadcaster.stop()
+    await queue.close_pool()
     await engine.dispose()
     await redis.aclose()
     log.info("api.stop")
@@ -32,13 +38,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.get("/api/health")
-async def health() -> JSONResponse:
-    db_ok, redis_ok = await check_db(), await check_redis()
-    ok = db_ok and redis_ok
-    return JSONResponse(
-        status_code=200 if ok else 503,
-        content={"status": "ok" if ok else "degraded", "db": db_ok, "redis": redis_ok},
-    )
+install_error_handlers(app)
+app.include_router(health.router)
+app.include_router(tasks.router)
+app.include_router(users.router)
+app.include_router(ws.router)
