@@ -1,5 +1,12 @@
 import { useDraggable } from "@dnd-kit/core";
-import { STATUSES, STATUS_LABEL, displayName, timeAgo, type Task, type TaskStatus } from "../lib/api";
+import {
+  STATUSES,
+  STATUS_LABEL,
+  displayName,
+  timeAgo,
+  type Task,
+  type TaskStatus,
+} from "../lib/api";
 
 interface Props {
   task: Task;
@@ -33,7 +40,11 @@ export function TaskCard({ task, onStatus, onDelete, highlight }: Props) {
         <div className="flex items-start justify-between gap-2">
           <p className="break-words text-sm font-medium leading-snug">{task.title}</p>
           {task.source === "voice" && (
-            <span title="Created from a voice message" className="shrink-0 text-base" aria-label="voice">
+            <span
+              title="Created from a voice message"
+              className="shrink-0 text-base"
+              aria-label="voice"
+            >
               🎤
             </span>
           )}

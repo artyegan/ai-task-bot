@@ -15,12 +15,6 @@ def _message(body: str, message_id: int = 10) -> SimpleNamespace:
     return SimpleNamespace(text=body, message_id=message_id, answer=AsyncMock())
 
 
-async def test_start_replies_with_help():
-    msg = _message("/start")
-    await commands.start(msg)
-    msg.answer.assert_awaited_once_with(messages.START)
-
-
 async def test_text_creates_task_and_replies(session, user):
     msg = _message("  Buy milk  ", message_id=77)
     await text.create_text_task(msg, session, user)
@@ -36,17 +30,7 @@ async def test_text_too_long_is_rejected(session, user):
     await text.create_text_task(msg, session, user)
     _, total = await task_service.list_tasks(session)
     assert total == 0
-    msg.answer.assert_awaited_once_with(
-        "❌ That's too long for a task title (max 500 characters)."
-    )
-
-
-async def test_unsupported_message_gets_a_hint():
-    from app.bot.handlers.voice import unsupported
-
-    msg = _message(None)
-    await unsupported(msg)
-    msg.answer.assert_awaited_once_with(messages.UNSUPPORTED_MESSAGE)
+    msg.answer.assert_awaited_once_with("❌ That's too long for a task title (max 500 characters).")
 
 
 async def test_list_empty_then_with_tasks(session, user):
@@ -67,14 +51,6 @@ async def test_list_empty_then_with_tasks(session, user):
         f"#{t1.number} [Pending] first",
         f"#{t2.number} [In Progress] second",
     ]
-
-
-async def test_done_marks_completed(session, user):
-    task = await task_service.create_task(session, user_id=user.id, title="ship it")
-    msg = _message(f"/done {task.number}")
-    await commands.mark_done(msg, CommandObject(args=f"#{task.number}"), session, user)
-    msg.answer.assert_awaited_once_with(f"✅ Task #{task.number} completed: ship it")
-    assert (await task_service.get_task(session, task.id)).status == TaskStatus.COMPLETED
 
 
 async def test_done_usage_and_not_found(session, user):

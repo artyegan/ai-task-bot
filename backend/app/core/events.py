@@ -6,11 +6,13 @@ The API process subscribes and fans every message out to WebSocket clients uncha
 import json
 from typing import Any
 
+from app.core.logging import get_logger
 from app.core.models import Task, utcnow
 from app.core.redis import redis
 from app.core.schemas import TaskOut, iso_z
 
 CHANNEL = "events"
+log = get_logger("events")
 
 
 def task_event(event_type: str, task: Task) -> dict[str, Any]:
@@ -36,4 +38,9 @@ def voice_failed_event(voice_job_id: int, user_id: int, error: str) -> dict[str,
 
 
 async def publish(event: dict[str, Any]) -> None:
-    await redis.publish(CHANNEL, json.dumps(event))
+    """Best effort: the write is already committed; a dashboard that misses an event refetches
+    on reconnect. Never turn a Redis hiccup into a failed request."""
+    try:
+        await redis.publish(CHANNEL, json.dumps(event))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("events.publish_failed", type=event.get("type"), error=str(exc))

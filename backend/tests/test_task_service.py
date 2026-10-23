@@ -102,25 +102,26 @@ async def test_list_filters_and_orders_newest_first(session, user):
     assert total == 2 and [t.id for t in items] == [t1.id]
 
 
-async def test_update_status_publishes_and_notifies_owner(session, user):
+async def test_update_status_publishes_event(session, user):
     task = await task_service.create_task(session, user_id=user.id, title="one")
     pubsub = await _subscribe()
-    updated = await task_service.update_task(
-        session, task.id, status=TaskStatus.IN_PROGRESS, notify_owner=True
-    )
+    updated = await task_service.update_task(session, task.id, status=TaskStatus.IN_PROGRESS)
     assert updated.status == TaskStatus.IN_PROGRESS
     assert updated.updated_at >= task.created_at
     event = await _next_event(pubsub)
     assert event["type"] == "task.updated" and event["task"]["status"] == "in_progress"
-    # a notification job was queued for the task owner
-    assert await redis.zcard("arq:queue") == 1
     await pubsub.aclose()
 
 
-async def test_update_same_status_does_not_notify(session, user):
-    task = await task_service.create_task(session, user_id=user.id, title="one")
-    await task_service.update_task(session, task.id, status=TaskStatus.PENDING, notify_owner=True)
-    assert await redis.zcard("arq:queue") == 0
+async def test_publish_failure_does_not_fail_the_write(session, user, monkeypatch):
+    from app.core import events
+
+    async def broken_publish(*_a, **_k):
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(events.redis, "publish", broken_publish)
+    task = await task_service.create_task(session, user_id=user.id, title="saved anyway")
+    assert task.id and (await task_service.get_task(session, task.id)).title == "saved anyway"
 
 
 async def test_delete_task(session, user):

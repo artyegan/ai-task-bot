@@ -23,7 +23,15 @@ const LABEL: Record<SocketStatus, string> = {
   reconnecting: "Reconnecting",
 };
 
-export function Toolbar({ view, onView, users, userFilter, onUserFilter, socket, onCreate }: Props) {
+export function Toolbar({
+  view,
+  onView,
+  users,
+  userFilter,
+  onUserFilter,
+  socket,
+  onCreate,
+}: Props) {
   const [title, setTitle] = useState("");
   const [owner, setOwner] = useState<number | "">("");
   const [busy, setBusy] = useState(false);

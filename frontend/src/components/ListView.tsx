@@ -1,4 +1,11 @@
-import { STATUSES, STATUS_LABEL, displayName, timeAgo, type Task, type TaskStatus } from "../lib/api";
+import {
+  STATUSES,
+  STATUS_LABEL,
+  displayName,
+  timeAgo,
+  type Task,
+  type TaskStatus,
+} from "../lib/api";
 
 interface Props {
   tasks: Task[];

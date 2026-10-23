@@ -43,7 +43,9 @@ async def on_shutdown(ctx: dict[str, Any]) -> None:
 
 class WorkerSettings:
     functions = [
-        func(transcribe_voice, name=queue.TRANSCRIBE_VOICE, timeout=120),
+        # The job enforces its own TRANSCRIBE_TIMEOUT_SECONDS (default 600); arq's limit is only
+        # a backstop above it so a hang can never hold a worker slot forever.
+        func(transcribe_voice, name=queue.TRANSCRIBE_VOICE, timeout=900),
         func(send_notification, name=queue.SEND_NOTIFICATION, timeout=15),
     ]
     on_startup = on_startup

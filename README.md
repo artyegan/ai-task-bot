@@ -78,11 +78,15 @@ Failure handling along that path:
 
 | Failure | Behaviour |
 |---|---|
-| File larger than 20 MB | rejected by the bot before download; user told the limit |
+| File larger than 20 MB or longer than 5 minutes | rejected by the bot before download; user told the limit |
 | Telegram download error, network error | retried 3× with 2 s / 8 s / 30 s backoff, then failed with *"could not download the audio"* |
 | Model error | same retry policy, then *"transcription failed"* |
 | No speech in the audio | failed immediately with *"no speech detected"* (no retries, nothing to gain) |
-| Job retried after a crash | idempotent: a job already `done` returns without creating a second task |
+| Download + transcription exceed 10 minutes | the job enforces its own timeout: marked `timed_out`, user told; no job is left in `processing` |
+| Worker restarted mid-transcription | arq re-queues the job; the user's "transcribing…" message is completed by the re-run |
+| Job retried after a crash | idempotent: the task and the job's `done` state are written in one transaction, so a retry never creates a second task |
+| Redis unreachable after a write | events and notifications are best effort: the write stands, the failure is logged, the dashboard catches up on reconnect |
+| Redis restarted | the queue is persisted (append-only file on a volume), so queued voice notes are still processed |
 | Telegram unreachable when notifying | separate job, 5 retries with backoff; `Retry-After` from Telegram is honoured |
 | Message to edit was deleted by the user | falls back to sending a new message |
 | Worker restarts | the model loads at startup; the container reports healthy only after that |
@@ -149,6 +153,8 @@ Everything is read from `.env` (see [`.env.example`](.env.example)). Only the to
 | `WHISPER_INITIAL_PROMPT` | a to-do sentence | primes the model so *buy* beats *bye* on short clips |
 | `OPENAI_COMPAT_*` | — | base URL, key, model for the OpenAI-compatible adapter |
 | `MAX_VOICE_BYTES` | 20 MB | Telegram's bot download limit |
+| `MAX_VOICE_SECONDS` | 300 | longer voice notes are rejected up front |
+| `TRANSCRIBE_TIMEOUT_SECONDS` | 600 | download + transcription budget per voice note, enforced by the job itself |
 | `LOG_LEVEL` | `INFO` | |
 
 To use a smaller model: `WHISPER_MODEL=base docker compose up --build`.
@@ -161,22 +167,24 @@ make logs
 make test      # backend tests against real Postgres + Redis (separate test database)
 make lint      # ruff
 make web-test  # frontend unit tests + typecheck (needs node)
-make reset     # stop and delete the database volume
+make web-lint  # eslint + prettier
+make reset     # stop and delete the database volumes
 ```
 
 Frontend with hot reload against the API in Docker: `cd frontend && npm install && npm run dev` → http://localhost:5173.
 
-Tests: 42 backend tests (service layer, API, WebSocket events, bot handlers with a stubbed Telegram message, worker jobs with a stubbed Telegram client and the fake transcriber) and 4 frontend unit tests.
+Tests: 55 backend tests (service layer, API incl. degraded health, the WebSocket broadcaster against real Redis, bot routing through the real Dispatcher with a recording Telegram session, worker jobs incl. timeout and crash-between-steps scenarios) and 8 frontend tests (event reducer, components). `make web-lint` runs ESLint and Prettier.
 
 ## Design decisions and trade-offs
 
 - **Everything free, nothing external.** Transcription runs locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CTranslate2, int8 on CPU). A 3-second voice note takes about 4 seconds end to end on a laptop. The OpenAI-compatible adapter exists for anyone with a Groq or OpenAI key, but nothing depends on it.
-- **The model is baked into the worker image**, in its own build stage, so code or dependency changes never trigger a re-download, and the first voice note is as fast as the tenth. Price: the worker image is ~1.1 GB (api and bot are ~360 MB each, web 76 MB). A volume-cached model would make the image small but the first `up` slow and the demo offline-fragile.
+- **The model is baked into the worker image**, in its own build stage, so code or dependency changes never trigger a re-download, and the first voice note is as fast as the tenth. Price: the worker image is large: about 1.1 GB unpacked (the model layer alone is 486 MB), about 630 MB compressed. Docker Desktop and Colima list it as 1.75 GB because their containerd image store reports both copies added together. api and bot are ~360 MB each, web 76 MB. A volume-cached model would make the image small but the first `up` slow and the demo offline-fragile.
 - **Blocking inference never blocks the event loop.** arq runs jobs as coroutines; inference runs in a thread behind a semaphore of 1. Notification jobs keep flowing while a transcription runs. CTranslate2 releases the GIL, so a thread is enough; no process pool.
 - **One Redis, two roles.** arq's queue for work that must happen (durable, retried) and a pub/sub channel for events that are nice to have (a missed event is recovered by the dashboard's refetch on reconnect). Events are published only after the commit, by the service, so every writer behaves the same.
 - **Two separate jobs** (`transcribe_voice`, `send_notification`) so a Telegram outage never blocks the model and vice versa, and each gets its own timeout and retry policy.
 - **Per-user task numbers** on top of the global id: a user's first task is #1 in their chat regardless of how many other users exist.
-- **Idempotency over exactly-once.** A retried job checks the voice job's state before creating anything.
+- **Idempotency over exactly-once.** A retried job checks the voice job's state before creating anything, and the task plus the job's `done` state are committed together, so there is no window in which a crash yields a duplicate.
+- **Redis writes after the commit are best effort.** Events and notifications are published after the database commit and never fail the request; the dashboard refetches on reconnect, and a lost notification is logged. The arq queue itself is persisted (append-only file) because queued work must survive a restart.
 - **Compose ordering is explicit.** `migrate` is a one-shot container; the others use `service_completed_successfully` on it and `service_healthy` on Postgres and Redis. The worker's healthcheck passes only after the model is loaded.
 - **Dependencies are bounded.** Every runtime dependency has an upper bound; a floating major (PyAV 19) broke decoding once during development. The frontend has a lockfile.
 - **No authentication.** The brief describes a single shared board, so the dashboard is a trusted internal view. Adding auth would be the first step towards multi-tenancy, which is out of scope.
@@ -185,6 +193,8 @@ Tests: 42 backend tests (service layer, API, WebSocket events, bot handlers with
 ### Known limitations
 
 - Whisper `small` mishears very short clips occasionally (*"bye butter"*). The initial prompt fixes most of these; `WHISPER_MODEL=medium` fixes more at ~3× the size and CPU time.
-- Telegram limits bot downloads to 20 MB (roughly 20 minutes of voice).
+- Voice notes are capped at 5 minutes (configurable) so CPU transcription stays well inside the job timeout; Telegram itself caps bot downloads at 20 MB.
 - Voice notes are processed one at a time per worker. Scale by running more worker containers (`docker compose up --scale worker=2`); arq handles the distribution.
 - The dashboard loads up to 500 tasks; there is no pagination in the UI.
+- When a transcription hits the 10-minute budget, the job is failed and the user told, but the inference thread itself cannot be interrupted: it keeps using CPU until the model finishes that clip. With the 5-minute audio cap this does not happen in practice.
+- If PostgreSQL becomes unreachable in the middle of a voice job, the user is told but the row cannot be updated and stays `processing`; `voice_jobs` needs a manual look after a database outage.

@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import messages, queue
 from app.core.db import get_session
 from app.core.models import TaskSource, TaskStatus
 from app.core.schemas import TaskCreate, TaskList, TaskOut, TaskUpdate
@@ -45,14 +46,13 @@ async def get_task(task_id: int, session: Session) -> TaskOut:
 
 @router.patch("/{task_id}", response_model=TaskOut)
 async def update_task(task_id: int, body: TaskUpdate, session: Session) -> TaskOut:
+    previous_status = (await task_service.get_task(session, task_id)).status
     task = await task_service.update_task(
-        session,
-        task_id,
-        status=body.status,
-        title=body.title,
-        description=body.description,
-        notify_owner=True,
+        session, task_id, status=body.status, title=body.title, description=body.description
     )
+    if body.status is not None and body.status != previous_status:
+        # Changed from the dashboard: tell the owner in Telegram (best effort, already saved).
+        await queue.notify_best_effort(task.user.telegram_id, None, messages.status_changed(task))
     return TaskOut.model_validate(task)
 
 

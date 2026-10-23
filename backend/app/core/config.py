@@ -1,4 +1,4 @@
-"""Application settings. Single source of truth for environment variables (see PLAN.md 4b)."""
+"""Application settings. Mirrored in .env.example and docker-compose.yml."""
 
 from functools import lru_cache
 from typing import Literal
@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     openai_compat_api_key: str = ""
     openai_compat_model: str = ""
 
-    max_voice_bytes: int = 20 * 1024 * 1024
+    max_voice_bytes: int = 20 * 1024 * 1024  # Telegram bot download limit
+    max_voice_seconds: int = 300  # longer notes are rejected up front
+    transcribe_timeout_seconds: int = 600  # download + transcription; owned by the job itself
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:5173"  # comma-separated
 

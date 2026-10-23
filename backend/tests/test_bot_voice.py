@@ -40,11 +40,21 @@ async def test_audio_file_is_handled_like_voice(session, user):
     assert await redis.zcard("arq:queue") == 1
 
 
+async def test_voice_too_long_is_rejected_before_queueing(session, user):
+    msg = _voice_message()
+    msg.voice.duration = 20 * 60
+    await handle_voice(msg, session, user)
+    msg.answer.assert_awaited_once_with(
+        "❌ Voice note is too long (max 5 minutes). Please send a shorter one."
+    )
+    assert await session.scalar(select(VoiceJob)) is None
+
+
 async def test_voice_too_large_is_rejected_before_queueing(session, user):
     msg = _voice_message(file_size=25 * 1024 * 1024)
     await handle_voice(msg, session, user)
     msg.answer.assert_awaited_once_with(
-        "❌ Voice note is too long (max 20 MB). Please send a shorter one."
+        "❌ Voice note is too big (max 20 MB). Please send a shorter one."
     )
     assert await session.scalar(select(VoiceJob)) is None
     assert await redis.zcard("arq:queue") == 0
@@ -59,6 +69,8 @@ async def test_voice_enqueue_failure_updates_ack(session, user, monkeypatch):
     msg = _voice_message()
     await handle_voice(msg, session, user)
     msg.ack.edit_text.assert_awaited_once_with(messages.SOMETHING_WENT_WRONG)
+    job = await session.scalar(select(VoiceJob))
+    assert job is not None and job.status == VoiceJobStatus.FAILED  # not orphaned as `queued`
 
 
 async def test_voice_db_failure_updates_ack_and_leaves_session_usable(session, user, monkeypatch):

@@ -18,15 +18,21 @@ router = Router(name="voice")
 async def handle_voice(message: Message, session: AsyncSession, user: User) -> None:
     voice = message.voice or message.audio  # voice note, or an audio file sent as a document
     assert voice is not None
-    max_bytes = get_settings().max_voice_bytes
-    if voice.file_size and voice.file_size > max_bytes:
-        await message.answer(messages.VOICE_TOO_LARGE.format(max_mb=max_bytes // (1024 * 1024)))
+    settings = get_settings()
+    if voice.file_size and voice.file_size > settings.max_voice_bytes:
+        max_mb = settings.max_voice_bytes // (1024 * 1024)
+        await message.answer(messages.VOICE_TOO_LARGE.format(max_mb=max_mb))
+        return
+    if voice.duration and voice.duration > settings.max_voice_seconds:
+        max_min = settings.max_voice_seconds // 60
+        await message.answer(messages.VOICE_TOO_LONG.format(max_min=max_min))
         return
 
     user_id = user.id  # read before any failure can expire the ORM object
 
     # Acknowledge first: the user sees feedback before any DB or queue work happens.
     ack = await message.answer(messages.VOICE_RECEIVED)
+    job = None
     try:
         job = await voice_service.create_voice_job(
             session,
@@ -38,8 +44,13 @@ async def handle_voice(message: Message, session: AsyncSession, user: User) -> N
         )
         await queue.enqueue_transcription(job.id)
     except Exception:
-        log.exception("voice.enqueue_failed", user_id=user_id)
+        log.exception("voice.enqueue_failed", user_id=user_id, voice_job_id=job and job.id)
         await session.rollback()  # a failed flush leaves the session unusable until rolled back
+        if job is not None:  # row exists but no job was queued: don't leave it `queued` forever
+            try:
+                await voice_service.mark_failed(session, job, voice_service.INTERNAL_ERROR)
+            except Exception:  # noqa: BLE001
+                log.exception("voice.mark_failed_failed", voice_job_id=job.id)
         await ack.edit_text(messages.SOMETHING_WENT_WRONG)
         return
     log.info("voice.queued", voice_job_id=job.id, user_id=user_id, seconds=voice.duration)

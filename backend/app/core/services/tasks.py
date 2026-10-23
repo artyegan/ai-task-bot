@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import events, messages, queue
+from app.core import events
 from app.core.exceptions import TaskNotFound, UserNotFound
 from app.core.models import Task, TaskSource, TaskStatus, User, utcnow
 
@@ -59,15 +59,13 @@ async def get_task(session: AsyncSession, task_id: int) -> Task:
 
 async def get_user_task(session: AsyncSession, user_id: int, number: int) -> Task:
     """Look a task up by its per-user number (what the bot shows)."""
-    task = await session.scalar(
-        select(Task).where(Task.user_id == user_id, Task.number == number)
-    )
+    task = await session.scalar(select(Task).where(Task.user_id == user_id, Task.number == number))
     if task is None:
         raise TaskNotFound(number)
     return task
 
 
-async def create_task(
+async def stage_task(
     session: AsyncSession,
     *,
     user_id: int,
@@ -76,6 +74,9 @@ async def create_task(
     source: TaskSource = TaskSource.TEXT,
     telegram_message_id: int | None = None,
 ) -> Task:
+    """Stages a task in the session (flushed: id and number assigned) but does NOT commit.
+    The caller commits, possibly together with its own rows (see voice.complete_job).
+    Callers validate the title (length, non-empty); this does not truncate."""
     # Lock the owner row so concurrent creates for the same user get distinct numbers.
     user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
     if user is None:
@@ -92,9 +93,35 @@ async def create_task(
         telegram_message_id=telegram_message_id,
     )
     session.add(task)
-    await session.commit()
+    await session.flush()
+    return task
+
+
+async def publish_created(session: AsyncSession, task: Task) -> None:
     await session.refresh(task)  # load the joined user for the event payload
     await events.publish(events.task_event("task.created", task))
+
+
+async def create_task(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    title: str,
+    description: str | None = None,
+    source: TaskSource = TaskSource.TEXT,
+    telegram_message_id: int | None = None,
+) -> Task:
+    """Stages, commits and publishes `task.created`."""
+    task = await stage_task(
+        session,
+        user_id=user_id,
+        title=title,
+        description=description,
+        source=source,
+        telegram_message_id=telegram_message_id,
+    )
+    await session.commit()
+    await publish_created(session, task)
     return task
 
 
@@ -105,10 +132,8 @@ async def update_task(
     status: TaskStatus | None = None,
     title: str | None = None,
     description: str | None = None,
-    notify_owner: bool = False,
 ) -> Task:
     task = await get_task(session, task_id)
-    status_changed = status is not None and status != task.status
     if status is not None:
         task.status = status
     if title is not None:
@@ -118,8 +143,6 @@ async def update_task(
     task.updated_at = utcnow()
     await session.commit()
     await events.publish(events.task_event("task.updated", task))
-    if status_changed and notify_owner:
-        await queue.enqueue_notification(task.user.telegram_id, None, messages.status_changed(task))
     return task
 
 

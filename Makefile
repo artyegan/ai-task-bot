@@ -1,4 +1,4 @@
-.PHONY: up down build logs ps test lint
+.PHONY: up down build logs ps test lint web-test web-lint reset
 
 up:            ## Build and start the whole stack
 	docker compose up --build -d
@@ -22,7 +22,10 @@ test:          ## Backend tests against real Postgres + Redis (test db/index, ne
 	docker compose --profile test run --build --rm test pytest -q
 
 lint:
-	docker compose --profile test run --build --rm --no-deps test ruff check app tests
+	docker compose --profile test run --build --rm --no-deps test sh -c "ruff check app tests && ruff format --check app tests"
 
 web-test:      ## Frontend unit tests + typecheck (needs node locally)
 	cd frontend && npm test && npm run typecheck
+
+web-lint:      ## ESLint + Prettier check
+	cd frontend && npm run lint

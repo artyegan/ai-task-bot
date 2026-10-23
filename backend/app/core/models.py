@@ -1,4 +1,4 @@
-"""SQLAlchemy models. Enum values are stored as their string values (see PLAN 4b)."""
+"""SQLAlchemy models. Enum values are stored as their string values."""
 
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -16,6 +16,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
+
+MAX_TITLE_LENGTH = 500  # tasks.title; enforced by the API schema, the bot and the worker
 
 
 def utcnow() -> datetime:
@@ -63,7 +65,7 @@ class Task(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     number: Mapped[int] = mapped_column(Integer)
-    title: Mapped[str] = mapped_column(String(500))
+    title: Mapped[str] = mapped_column(String(MAX_TITLE_LENGTH))
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[TaskStatus] = mapped_column(
         _enum(TaskStatus, "task_status"), default=TaskStatus.PENDING, index=True

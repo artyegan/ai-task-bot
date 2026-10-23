@@ -1,4 +1,5 @@
 from app.core.models import TaskStatus
+from app.core.redis import redis
 
 
 async def test_health(client):
@@ -14,7 +15,10 @@ async def test_task_crud_flow(client, user):
     assert task["number"] == 1
     assert task["status"] == "pending" and task["source"] == "text"
     assert task["user"] == {
-        "id": user.id, "telegram_id": 123456789, "username": "alice", "first_name": "Alice"
+        "id": user.id,
+        "telegram_id": 123456789,
+        "username": "alice",
+        "first_name": "Alice",
     }
     assert task["created_at"].endswith("Z")
 
@@ -42,11 +46,45 @@ async def test_task_crud_flow(client, user):
     }
 
 
+async def test_status_change_notifies_owner_once(client, user):
+    r = await client.post("/api/tasks", json={"title": "notify me", "user_id": user.id})
+    task_id = r.json()["id"]
+    r = await client.patch(f"/api/tasks/{task_id}", json={"status": "in_progress"})
+    assert r.status_code == 200
+    assert await redis.zcard("arq:queue") == 1  # one send_notification job for the owner
+    r = await client.patch(f"/api/tasks/{task_id}", json={"status": "in_progress"})
+    assert r.status_code == 200
+    assert await redis.zcard("arq:queue") == 1  # unchanged status: no second notification
+    r = await client.patch(f"/api/tasks/{task_id}", json={"title": "renamed"})
+    assert await redis.zcard("arq:queue") == 1  # title-only change: no notification
+
+
+async def test_health_degraded_when_redis_fails(client, monkeypatch):
+    from app.api.routers import health
+
+    async def down():
+        return False
+
+    monkeypatch.setattr(health, "check_redis", down)
+    r = await client.get("/api/health")
+    assert r.status_code == 503
+    assert r.json() == {"status": "degraded", "db": True, "redis": False}
+
+
 async def test_validation_error_envelope(client, user):
     r = await client.post("/api/tasks", json={"title": "", "user_id": user.id})
     assert r.status_code == 422
     body = r.json()["error"]
     assert body["code"] == "validation_error" and body["details"]
+
+    r = await client.post("/api/tasks", json={"title": "   ", "user_id": user.id})
+    assert r.status_code == 422  # whitespace-only is not a title
+
+    r = await client.post("/api/tasks", json={"title": "x" * 501, "user_id": user.id})
+    assert r.status_code == 422
+
+    r = await client.post("/api/tasks", json={"title": "  padded  ", "user_id": user.id})
+    assert r.status_code == 201 and r.json()["title"] == "padded"
 
     r = await client.patch("/api/tasks/1", json={})
     assert r.status_code == 422

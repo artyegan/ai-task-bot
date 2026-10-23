@@ -12,7 +12,10 @@ export function useTasks() {
     queryFn: async () => (await api.listTasks()).items,
     staleTime: Infinity, // the WebSocket keeps it fresh; refetch happens on reconnect
   });
-  const users = useQuery({ queryKey: ["users"], queryFn: async () => (await api.listUsers()).items });
+  const users = useQuery({
+    queryKey: ["users"],
+    queryFn: async () => (await api.listUsers()).items,
+  });
 
   const apply = (event: TaskEvent) => {
     qc.setQueryData<Task[]>(TASKS, (old) => applyEvent(old ?? [], event));
@@ -31,6 +34,11 @@ export function useTasks() {
       return { previous };
     },
     onError: (_err, _vars, ctx) => ctx?.previous && qc.setQueryData(TASKS, ctx.previous),
+    // The server's row wins (updated_at etc.), so the board cannot drift while the socket is down.
+    onSuccess: (task) =>
+      qc.setQueryData<Task[]>(TASKS, (old) =>
+        (old ?? []).map((t) => (t.id === task.id ? task : t)),
+      ),
   });
 
   const remove = useMutation({

@@ -5,12 +5,10 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import messages
-from app.core.models import TaskSource, User
+from app.core.models import MAX_TITLE_LENGTH, TaskSource, User
 from app.core.services import tasks as task_service
 
 router = Router(name="text")
-
-MAX_TITLE_CHARS = 500  # tasks.title column
 
 
 @router.message(F.text)
@@ -18,8 +16,8 @@ async def create_text_task(message: Message, session: AsyncSession, user: User) 
     title = (message.text or "").strip()
     if not title:
         return
-    if len(title) > MAX_TITLE_CHARS:
-        await message.answer(messages.TITLE_TOO_LONG.format(max_chars=MAX_TITLE_CHARS))
+    if len(title) > MAX_TITLE_LENGTH:
+        await message.answer(messages.TITLE_TOO_LONG.format(max_chars=MAX_TITLE_LENGTH))
         return
     task = await task_service.create_task(
         session,

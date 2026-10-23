@@ -39,7 +39,9 @@ describe("applyEvent", () => {
 
   it("removes deleted tasks and ignores voice failures", () => {
     const list = [task(1), task(2)];
-    expect(applyEvent(list, { type: "task.deleted", task_id: 1, ts: "" }).map((t) => t.id)).toEqual([2]);
+    expect(applyEvent(list, { type: "task.deleted", task_id: 1, ts: "" }).map((t) => t.id)).toEqual(
+      [2],
+    );
     expect(
       applyEvent(list, { type: "voice.failed", voice_job_id: 1, user_id: 1, error: "x", ts: "" }),
     ).toBe(list);

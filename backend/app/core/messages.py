@@ -19,7 +19,8 @@ VOICE_TASK_CREATED = "✅ Task #{number} created from voice: {title}"
 VOICE_FAILED = (
     "❌ Couldn't transcribe that voice note ({reason}). Please try again or send it as text."
 )
-VOICE_TOO_LARGE = "❌ Voice note is too long (max {max_mb} MB). Please send a shorter one."
+VOICE_TOO_LARGE = "❌ Voice note is too big (max {max_mb} MB). Please send a shorter one."
+VOICE_TOO_LONG = "❌ Voice note is too long (max {max_min} minutes). Please send a shorter one."
 STATUS_CHANGED = "🔄 Task #{number} moved to {status}: {title}"
 NO_OPEN_TASKS = "You have no open tasks."
 LIST_HEADER = "📋 Your open tasks:\n"
@@ -37,6 +38,7 @@ FAILURE_REASONS = {
     "download_failed": "could not download the audio",
     "transcription_failed": "transcription failed",
     "transcription_empty": "no speech detected",
+    "timed_out": "it took too long",
     "internal_error": "internal error",
 }
 

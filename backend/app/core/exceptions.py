@@ -1,4 +1,4 @@
-"""Domain errors. The API maps these to the error envelope in PLAN 4b."""
+"""Domain errors. The API maps these to its {"error": {...}} envelope (see api/errors.py)."""
 
 
 class NotFoundError(Exception):

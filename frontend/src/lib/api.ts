@@ -1,4 +1,4 @@
-// Types mirror the backend contracts (PLAN 4b). Every task carries its owner.
+// Types mirror the backend's Pydantic schemas. Every task carries its owner.
 
 export type TaskStatus = "pending" | "in_progress" | "completed";
 export type TaskSource = "text" | "voice";
@@ -34,6 +34,16 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   pending: "Pending",
   in_progress: "In Progress",
   completed: "Completed",
+};
+
+/** Failure codes from the worker (voice_jobs.error) → what to tell the viewer. */
+export const VOICE_FAILURE_LABEL: Record<string, string> = {
+  file_too_large: "the file was too large",
+  download_failed: "the audio could not be downloaded",
+  transcription_failed: "transcription failed",
+  transcription_empty: "no speech was detected",
+  timed_out: "it took too long",
+  internal_error: "an internal error occurred",
 };
 
 export class ApiError extends Error {

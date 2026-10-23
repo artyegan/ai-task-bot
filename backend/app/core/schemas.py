@@ -1,11 +1,16 @@
 """Pydantic schemas: the JSON shapes shared by REST responses and WebSocket events."""
 
 from datetime import UTC, datetime
-from typing import Self
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, StringConstraints, field_serializer, model_validator
 
-from app.core.models import TaskSource, TaskStatus
+from app.core.models import MAX_TITLE_LENGTH, TaskSource, TaskStatus
+
+# Whitespace is stripped before the length checks, so "   " is rejected, not stored empty.
+Title = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_TITLE_LENGTH)
+]
 
 
 def iso_z(dt: datetime) -> str:
@@ -50,14 +55,14 @@ class UserList(BaseModel):
 
 
 class TaskCreate(BaseModel):
-    title: str = Field(min_length=1, max_length=500)
+    title: Title
     description: str | None = None
     user_id: int
 
 
 class TaskUpdate(BaseModel):
     status: TaskStatus | None = None
-    title: str | None = Field(default=None, min_length=1, max_length=500)
+    title: Title | None = None
     description: str | None = None
 
     @model_validator(mode="after")
