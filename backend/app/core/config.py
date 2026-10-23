@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     whisper_model: str = "small"
     whisper_compute_type: str = "int8"
     whisper_language: str = ""  # empty = auto-detect
+    # Primes the decoder with task-like phrasing so homophones resolve the right way
+    # ("buy butter" rather than "bye butter"). Empty disables it.
+    whisper_initial_prompt: str = (
+        "To-do list: buy milk, buy bread, call the dentist, pay the electricity bill, "
+        "book a meeting with Anna, send the report, fix the login bug."
+    )
 
     openai_compat_base_url: str = ""
     openai_compat_api_key: str = ""

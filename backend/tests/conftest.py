@@ -12,7 +12,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.main import app
-from app.core import models  # noqa: F401
+from app.core import events, models
 from app.core.config import get_settings
 from app.core.db import Base, SessionFactory, engine
 from app.core.redis import redis
@@ -66,3 +66,30 @@ async def user(session: AsyncSession) -> models.User:
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
+
+
+class EventStream:
+    """Subscribes to the Redis events channel; `next()` returns the next published event."""
+
+    def __init__(self, pubsub) -> None:
+        self._pubsub = pubsub
+
+    async def next(self, timeout: float = 3.0) -> dict:
+        import asyncio
+        import json
+
+        deadline = asyncio.get_running_loop().time() + timeout
+        while asyncio.get_running_loop().time() < deadline:
+            msg = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=0.2)
+            if msg:
+                return json.loads(msg["data"])
+        raise AssertionError("no event published")
+
+
+@pytest.fixture
+async def event_stream():
+    pubsub = redis.pubsub()
+    await pubsub.subscribe(events.CHANNEL)
+    await pubsub.get_message(timeout=1)  # subscribe confirmation
+    yield EventStream(pubsub)
+    await pubsub.aclose()

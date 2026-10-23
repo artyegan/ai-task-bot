@@ -56,6 +56,7 @@ def upgrade() -> None:
         ),
         sa.Column("telegram_file_id", sa.String(length=256), nullable=False),
         sa.Column("chat_id", sa.BigInteger(), nullable=False),
+        sa.Column("message_id", sa.BigInteger(), nullable=False),
         sa.Column("status_message_id", sa.BigInteger(), nullable=True),
         sa.Column("status", voice_job_status, nullable=False),
         sa.Column("attempts", sa.Integer(), nullable=False),

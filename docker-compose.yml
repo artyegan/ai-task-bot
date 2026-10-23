@@ -80,6 +80,33 @@ services:
       redis:
         condition: service_healthy
 
+  # Transcription + notification jobs. The Whisper model is inside the image; the
+  # healthcheck passes only after it is loaded, so the first voice note is never slow.
+  worker:
+    build:
+      context: ./backend
+      target: worker
+      args:
+        WHISPER_MODEL: ${WHISPER_MODEL:-small}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/app
+      REDIS_URL: redis://redis:6379/0
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/worker-ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 90s
+
   # Backend tests against real Postgres (separate database) and Redis (separate db index).
   # `make test` runs: docker compose --profile test run --rm test
   test:

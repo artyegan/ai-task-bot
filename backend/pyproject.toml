@@ -14,10 +14,12 @@ dependencies = [
     "arq>=0.26",
     "aiogram>=3.10",
     "structlog>=24.1",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
-worker = ["faster-whisper>=1.0"]
+# av<19: faster-whisper 1.2 still calls av.open(metadata_errors=...), which PyAV 19 removed.
+worker = ["faster-whisper>=1.1,<2", "av>=15,<19"]
 dev = [
     "pytest>=8.2",
     "pytest-asyncio>=1.0",

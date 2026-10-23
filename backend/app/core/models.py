@@ -85,7 +85,8 @@ class VoiceJob(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     telegram_file_id: Mapped[str] = mapped_column(String(256))
     chat_id: Mapped[int] = mapped_column(BigInteger)
-    status_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    message_id: Mapped[int] = mapped_column(BigInteger)  # the user's voice message
+    status_message_id: Mapped[int | None] = mapped_column(BigInteger)  # our "transcribing…" reply
     status: Mapped[VoiceJobStatus] = mapped_column(
         _enum(VoiceJobStatus, "voice_job_status"), default=VoiceJobStatus.QUEUED, index=True
     )
