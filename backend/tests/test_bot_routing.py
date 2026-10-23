@@ -90,8 +90,18 @@ async def test_start_registers_user_and_replies(bot, session):
 async def test_text_becomes_task_and_commands_still_work(bot, session):
     assert await _feed(bot, text="Buy milk") == ["✅ Task #1 created: Buy milk"]
     assert await _feed(bot, text="/list") == ["📋 Your open tasks:\n#1 [Pending] Buy milk"]
+    (status_reply,) = await _feed(bot, text="/status 1")
+    lines = status_reply.splitlines()
+    assert lines[:2] == ["📌 Task #1: Buy milk", "Status: Pending"]
+    assert lines[2].startswith("Created 20") and lines[2].endswith("UTC via text")
+    assert await _feed(bot, text="/status 9") == ["❌ Task #9 not found."]
+    assert await _feed(bot, text="/status") == [messages.USAGE_STATUS]
+    assert await _feed(bot, text="/doing 1") == ["🔄 Task #1 in progress: Buy milk"]
+    assert await _feed(bot, text="/list") == ["📋 Your open tasks:\n#1 [In Progress] Buy milk"]
     assert await _feed(bot, text="/done #1") == ["✅ Task #1 completed: Buy milk"]  # "#" allowed
     assert await _feed(bot, text="/list") == [messages.NO_OPEN_TASKS]
+    assert await _feed(bot, text="/pending 1") == ["⏳ Task #1 back to pending: Buy milk"]
+    assert await _feed(bot, text="/list") == ["📋 Your open tasks:\n#1 [Pending] Buy milk"]
 
 
 async def test_unknown_command_is_not_turned_into_a_task(bot, session):

@@ -12,6 +12,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d app"]
       interval: 5s
+      start_period: 30s
+      start_interval: 1s   # probe every second while starting so dependents start sooner
       timeout: 3s
       retries: 10
 
@@ -24,6 +26,8 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      start_period: 30s
+      start_interval: 1s
       timeout: 3s
       retries: 10
 
@@ -62,9 +66,10 @@ services:
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 10s
+      start_period: 30s
+      start_interval: 1s
       timeout: 5s
       retries: 5
-      start_period: 10s
 
   bot:
     build:

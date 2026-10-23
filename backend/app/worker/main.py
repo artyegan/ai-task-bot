@@ -7,6 +7,7 @@ from aiogram import Bot
 from arq import func
 from arq.connections import RedisSettings
 
+from app.bot.retry import RetryOnNetworkError
 from app.core import queue
 from app.core.config import get_settings
 from app.core.db import engine
@@ -26,6 +27,7 @@ READY_FILE = Path("/tmp/worker-ready")  # docker healthcheck: exists once the mo
 async def on_startup(ctx: dict[str, Any]) -> None:
     READY_FILE.unlink(missing_ok=True)
     ctx["bot"] = Bot(settings.telegram_bot_token)
+    ctx["bot"].session.middleware(RetryOnNetworkError())
     ctx["transcriber"] = build_transcriber(settings)
     await ctx["transcriber"].load()  # fail loudly here, not on the first voice note
     READY_FILE.touch()

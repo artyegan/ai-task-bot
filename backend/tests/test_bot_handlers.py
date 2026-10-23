@@ -58,6 +58,10 @@ async def test_done_usage_and_not_found(session, user):
     await commands.mark_done(msg, CommandObject(args=None), session, user)
     msg.answer.assert_awaited_once_with(messages.USAGE_DONE)
 
+    msg = _message("/doing x")
+    await commands.mark_in_progress(msg, CommandObject(args="x"), session, user)
+    msg.answer.assert_awaited_once_with(messages.USAGE_DOING)
+
     msg = _message("/done 999")
     await commands.mark_done(msg, CommandObject(args="999"), session, user)
     msg.answer.assert_awaited_once_with("❌ Task #999 not found.")

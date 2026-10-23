@@ -28,7 +28,7 @@ When `docker compose ps` shows every service healthy:
 2. Send the bot `/start`, then a text such as *Buy milk*. The task appears on the board instantly, with a toast.
 3. Send a voice note. The bot answers **"🎤 Got it, transcribing…"** at once; a few seconds later that message changes to **"✅ Task #2 created from voice: …"** and the task shows up with a 🎤 badge.
 4. Drag the card to *In Progress* (or click its button). Telegram receives **"🔄 Task #2 moved to In Progress"**.
-5. Send `/list`, then `/done 2`. The card jumps to *Completed* on the board.
+5. Send `/list`, then `/doing 1` and `/done 2`. The cards move on the board as you type.
 6. Resilience: `docker compose stop api` turns the dot red ("Reconnecting"); `docker compose start api` brings it back and the board refetches by itself.
 
 ## Architecture
@@ -89,6 +89,7 @@ Failure handling along that path:
 | Redis restarted | the queue is persisted (append-only file on a volume), so queued voice notes are still processed |
 | Telegram unreachable when notifying | separate job, 5 retries with backoff; `Retry-After` from Telegram is honoured |
 | Message to edit was deleted by the user | falls back to sending a new message |
+| Transient network error talking to Telegram (e.g. a container's first outbound connection) | every Telegram call is retried 3× with 0.5 s / 1 s backoff at the client level, in the bot and the worker |
 | Worker restarts | the model loads at startup; the container reports healthy only after that |
 
 Every voice job keeps its state (`queued → processing → done | failed`), attempt count and failure code in `voice_jobs` for inspection.
@@ -137,7 +138,10 @@ Tasks carry two identifiers: `id` is global (API, dashboard); `number` counts fr
 | any text | creates a task |
 | voice note or audio file | creates a task from the transcript |
 | `/list` | your open tasks |
+| `/status <number>` | one task: title, status, created when and how |
+| `/doing <number>` | marks your task in progress |
 | `/done <number>` | marks your task completed |
+| `/pending <number>` | moves your task back to pending (reopens a completed one) |
 
 ## Configuration
 
@@ -173,7 +177,7 @@ make reset     # stop and delete the database volumes
 
 Frontend with hot reload against the API in Docker: `cd frontend && npm install && npm run dev` → http://localhost:5173.
 
-Tests: 55 backend tests (service layer, API incl. degraded health, the WebSocket broadcaster against real Redis, bot routing through the real Dispatcher with a recording Telegram session, worker jobs incl. timeout and crash-between-steps scenarios) and 8 frontend tests (event reducer, components). `make web-lint` runs ESLint and Prettier.
+Tests: 58 backend tests (service layer, API incl. degraded health, the WebSocket broadcaster against real Redis, bot routing through the real Dispatcher with a recording Telegram session, worker jobs incl. timeout and crash-between-steps scenarios) and 8 frontend tests (event reducer, components). `make web-lint` runs ESLint and Prettier.
 
 ## Design decisions and trade-offs
 
